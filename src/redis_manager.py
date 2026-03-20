@@ -163,13 +163,14 @@ class RedisManager:
             task_id = f"{int(time.time() * 1000)}_{hash(str(task_data)) & 0xFFFFFF}"
             task = {
                 "task_id": task_id,
-                "chat_id": task_data['chat_id'],
+                "chat_id": str(task_data['chat_id']),
                 "text": task_data['text'],
                 "parse_mode": task_data.get('parse_mode', 'Markdown'),
                 "disable_notification": str(task_data.get('disable_notification', False)),
+                "bot_token": task_data.get('bot_token', ''),
                 "status": "pending",
-                "created_at": time.time(),
-                "retry_count": 0,
+                "created_at": str(time.time()),
+                "retry_count": "0",
                 "error_msg": ""
             }
             
@@ -214,16 +215,16 @@ class RedisManager:
             
             update_data = {
                 "status": status,
-                "updated_at": time.time()
+                "updated_at": str(time.time())
             }
             
             if error_msg:
                 update_data['error_msg'] = error_msg
             if message_id:
-                update_data['message_id'] = message_id
+                update_data['message_id'] = str(message_id)
             if status == "failed":
                 retry_count = int(self.client.hget(key, 'retry_count'))
-                update_data['retry_count'] = retry_count + 1
+                update_data['retry_count'] = str(retry_count + 1)
             
             self.client.hset(key, mapping=update_data)
             logger.info(f"🔄 任务状态更新: {task_id} -> {status}")
