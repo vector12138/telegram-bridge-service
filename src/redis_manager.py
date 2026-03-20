@@ -17,13 +17,13 @@ class RedisManager:
         """初始化"""
         self.config = config
         self.host = config.get('host', '127.0.0.1')
-        self.port = config.get('port', 6379)
-        self.db = config.get('db', 2)
+        self.port = int(config.get('port', 6379))
+        self.db = int(config.get('db', 2))
         self.password = config.get('password', '')
         self.prefix = config.get('key_prefix', 'telegram:bridge:')
-        self.message_expire = config.get('message_expire', 86400 * 7)
-        self.task_expire = config.get('task_expire', 86400 * 3)
-        self.max_recent = config.get('max_recent_messages', 1000)
+        self.message_expire = int(config.get('message_expire', 86400 * 7))
+        self.task_expire = int(config.get('task_expire', 86400 * 3))
+        self.max_recent = int(config.get('max_recent_messages', 1000))
         
         # 连接Redis
         self.client = redis.Redis(
