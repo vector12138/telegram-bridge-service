@@ -123,20 +123,28 @@ class BotTelegramClient(BaseTelegramClient):
         
         self.application = ApplicationBuilder().token(self.token).build()
         
-        # 注册处理器
-        self.application.add_handler(MessageHandler(filters.ALL, self._handle_message))
-        self.application.add_handler(CallbackQueryHandler(self._handle_callback))
-        
-        logger.info("🤖 Bot模式客户端初始化完成")
+        # 只有默认的主客户端才注册消息处理器，自定义客户端只用于发送
+        if message_callback and hasattr(message_callback, '__call__'):
+            # 注册处理器
+            self.application.add_handler(MessageHandler(filters.ALL, self._handle_message))
+            self.application.add_handler(CallbackQueryHandler(self._handle_callback))
+            logger.info("🤖 主Bot客户端初始化完成，已注册消息监听")
+        else:
+            logger.info("🤖 自定义Bot客户端初始化完成，仅用于发送消息")
     
     async def start(self):
-        """启动Bot"""
-        logger.info("🚀 启动Telegram Bot服务...")
+        """启动Bot，主客户端启动监听，自定义客户端只初始化不启动polling"""
+        logger.info("🚀 初始化Telegram Bot客户端...")
         await self.application.initialize()
         await self.application.start()
-        drop_pending = self.config.get('bot', {}).get('drop_pending_updates', True)
-        await self.application.updater.start_polling(drop_pending_updates=drop_pending)
-        logger.info("✅ Bot服务启动成功，开始监听消息")
+        
+        # 只有主客户端（有消息回调的）才启动polling监听消息
+        if self.message_callback and hasattr(self.message_callback, '__call__'):
+            drop_pending = self.config.get('bot', {}).get('drop_pending_updates', True)
+            await self.application.updater.start_polling(drop_pending_updates=drop_pending)
+            logger.info("✅ Bot服务启动成功，开始监听消息")
+        else:
+            logger.info("✅ 自定义Bot客户端初始化完成，仅用于发送消息")
     
     async def stop(self):
         """停止Bot"""

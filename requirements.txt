@@ -1,16 +1,9 @@
-# Telegram 相关
 telethon==1.36.0
 python-telegram-bot==21.7
-
-# Web 服务
 fastapi==0.115.8
 uvicorn==0.34.0
 aiohttp==3.10.10
-
-# 数据库
 redis==5.2.1
-
-# 工具类
 pydantic==2.10.3
 pyyaml==6.0.2
 python-dotenv==1.0.1

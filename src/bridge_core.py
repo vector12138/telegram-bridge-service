@@ -14,6 +14,13 @@ from .telegram_client import create_telegram_client
 from .redis_manager import get_redis_manager
 
 
+from telegram.ext import ApplicationBuilder
+from .telegram_client import BotTelegramClient
+import asyncio
+from typing import Dict, Optional, Callable, Any
+from loguru import logger
+
+
 class TelegramBridgeService:
     """Telegram 桥接服务核心"""
     
@@ -24,8 +31,12 @@ class TelegramBridgeService:
         self.webhook_config = config.get('webhook', {})
         self.max_retry = config.get('telegram', {}).get('max_send_retry', 3)
         
-        # 创建Telegram客户端
+        # 创建默认Telegram客户端
         self.client = create_telegram_client(config, self._on_receive_message)
+        
+        # 动态Bot客户端缓存 {token: BotTelegramClient}
+        self._bot_clients_cache: Dict[str, BotTelegramClient] = {}
+        self._cache_lock = asyncio.Lock()
         
         # 运行状态
         self.running = False
@@ -55,7 +66,18 @@ class TelegramBridgeService:
             except asyncio.CancelledError:
                 pass
         
+        # 停止默认客户端
         await self.client.stop()
+        
+        # 停止所有自定义Bot客户端
+        async with self._cache_lock:
+            for token, client in self._bot_clients_cache.items():
+                try:
+                    await client.stop()
+                    logger.debug(f"🛑 已停止自定义Bot客户端，Token前缀: {token[:10]}...")
+                except Exception as e:
+                    logger.warning(f"停止自定义Bot客户端失败: {str(e)}")
+        
         logger.info("👋 桥接服务已停止")
     
     # ==================== 对外接口 ====================
@@ -95,6 +117,29 @@ class TelegramBridgeService:
         stats['webhook_enabled'] = self.webhook_config.get('enabled', False)
         return stats
     
+    async def _get_custom_bot_client(self, bot_token: str) -> BotTelegramClient:
+        """
+        获取自定义Bot Token对应的客户端，带缓存
+        :param bot_token: Bot Token
+        :return: Bot客户端实例
+        """
+        async with self._cache_lock:
+            if bot_token in self._bot_clients_cache:
+                return self._bot_clients_cache[bot_token]
+            
+            # 创建新的Bot客户端
+            logger.info(f"🔌 创建新的自定义Bot客户端，Token前缀: {bot_token[:10]}...")
+            custom_config = self.config.copy()
+            custom_config['bot']['token'] = bot_token
+            # 自定义Bot不需要监听消息，所以传入空的回调
+            client = BotTelegramClient(custom_config, lambda x: asyncio.sleep(0))
+            # 初始化客户端
+            await client.application.initialize()
+            await client.application.start()
+            
+            self._bot_clients_cache[bot_token] = client
+            return client
+    
     # ==================== 内部逻辑 ====================
     async def _consume_send_tasks(self):
         """消费发送任务队列"""
@@ -111,8 +156,14 @@ class TelegramBridgeService:
                 chat_id = task['chat_id']
                 logger.info(f"⚡ 处理发送任务: {task_id} -> {chat_id}")
                 
-                # 发送消息
-                result = await self.client.send_message(task)
+                # 选择发送客户端：优先用任务自带的Bot Token，否则用默认客户端
+                custom_bot_token = task.get('bot_token')
+                if custom_bot_token and self.mode == 'bot':
+                    client = await self._get_custom_bot_client(custom_bot_token)
+                    result = await client.send_message(task)
+                else:
+                    # User模式不支持自定义Token，使用默认客户端
+                    result = await self.client.send_message(task)
                 
                 # 更新任务状态
                 if result['success']:

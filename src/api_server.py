@@ -69,6 +69,7 @@ class SendMessageRequest(BaseModel):
     text: str = Field(description="消息内容")
     parse_mode: str = Field(default="Markdown", description="解析模式: Markdown/HTML/None")
     disable_notification: bool = Field(default=False, description="是否静默发送")
+    bot_token: Optional[str] = Field(None, description="可选，自定义Bot Token，优先使用此Token发送，不填则使用配置默认Token")
 
 
 class SendMessageResponse(BaseModel):
