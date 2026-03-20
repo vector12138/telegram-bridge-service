@@ -6,8 +6,8 @@ API 服务层，整合所有接口
 import yaml
 import time
 import asyncio
-from typing import Optional, List, Dict
-from fastapi import FastAPI, HTTPException, Depends, status
+from typing import Optional, List, Dict, Any
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
@@ -202,6 +202,106 @@ async def search_messages(request: SearchRequest):
         case_sensitive=request.case_sensitive,
         limit=request.limit
     )
+
+
+# ==================== 兼容Telegram官方API接口 ====================
+@app.api_route("/bot{token}/{method}", methods=["GET", "POST"], summary="兼容Telegram官方API格式")
+async def telegram_compatible_api(token: str, method: str, request: Request):
+    """
+    100% 兼容Telegram官方API格式，其他应用无需修改代码，仅替换域名即可使用
+    官方格式: https://api.telegram.org/bot<token>/<method>
+    替换为: http://你的服务地址/bot<token>/<method>
+    """
+    # 解析请求参数，兼容query参数、form-data、JSON
+    if request.method == "GET":
+        params = dict(request.query_params)
+    else:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            params = await request.json()
+        elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+            params = await request.form()
+            params = dict(params)
+        else:
+            params = {}
+    
+    # 转换参数类型
+    if "chat_id" in params:
+        try:
+            params["chat_id"] = int(params["chat_id"])
+        except:
+            pass
+    if "disable_notification" in params:
+        params["disable_notification"] = str(params["disable_notification"]).lower() in ["true", "1", "yes"]
+    
+    # 处理常用方法
+    if method.lower() == "sendmessage":
+        # 发送消息方法，和官方完全兼容
+        required_fields = ["chat_id", "text"]
+        for field in required_fields:
+            if field not in params:
+                return {
+                    "ok": False,
+                    "error_code": 400,
+                    "description": f"Bad Request: 参数 {field} 是必填项"
+                }
+        
+        # 构造发送任务，使用路径中的token
+        task_data = {
+            "chat_id": params["chat_id"],
+            "text": params["text"],
+            "parse_mode": params.get("parse_mode", "Markdown"),
+            "disable_notification": params.get("disable_notification", False),
+            "bot_token": token  # 使用路径中的Bot Token
+        }
+        
+        # 创建发送任务，这里直接同步等待发送结果（兼容官方同步响应）
+        task_id = bridge.send_message(task_data)
+        if not task_id:
+            return {
+                "ok": False,
+                "error_code": 500,
+                "description": "Internal Server Error: 创建发送任务失败"
+            }
+        
+        # 等待发送完成（最多等待10秒，兼容官方同步响应）
+        for _ in range(100):
+            task = bridge.get_task_status(task_id)
+            if task and task["status"] == "success":
+                # 返回和官方完全一致的响应格式
+                return {
+                    "ok": True,
+                    "result": {
+                        "message_id": task["message_id"],
+                        "chat": {
+                            "id": task["chat_id"],
+                            "type": "private"
+                        },
+                        "date": int(task["updated_at"]),
+                        "text": params["text"]
+                    }
+                }
+            elif task and task["status"] == "failed":
+                return {
+                    "ok": False,
+                    "error_code": 400,
+                    "description": task["error_msg"]
+                }
+            await asyncio.sleep(0.1)
+        
+        # 超时
+        return {
+            "ok": False,
+            "error_code": 504,
+            "description": "Gateway Timeout: 发送超时"
+        }
+    
+    # 其他方法后续扩展，目前返回不支持
+    return {
+        "ok": False,
+        "error_code": 405,
+        "description": f"Method Not Allowed: 暂不支持方法 {method}"
+    }
 
 
 # ==================== 服务生命周期 ====================
