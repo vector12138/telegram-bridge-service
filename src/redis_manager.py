@@ -52,9 +52,14 @@ class RedisManager:
                 logger.error("消息缺少必填字段: message_id/chat_id")
                 return False
             
-            # 保存消息详情
+            # 保存消息详情，转换bool类型为字符串适配Redis
             key = f"{self.prefix}msg:{chat_id}:{msg_id}"
-            self.client.hset(key, mapping=message)
+            save_msg = message.copy()
+            if 'is_bot' in save_msg:
+                save_msg['is_bot'] = str(save_msg['is_bot'])
+            if 'has_media' in save_msg:
+                save_msg['has_media'] = str(save_msg['has_media'])
+            self.client.hset(key, mapping=save_msg)
             self.client.expire(key, self.message_expire)
             
             # 添加到全局消息列表（有序集合，按时间排序）
@@ -161,7 +166,7 @@ class RedisManager:
                 "chat_id": task_data['chat_id'],
                 "text": task_data['text'],
                 "parse_mode": task_data.get('parse_mode', 'Markdown'),
-                "disable_notification": task_data.get('disable_notification', False),
+                "disable_notification": str(task_data.get('disable_notification', False)),
                 "status": "pending",
                 "created_at": time.time(),
                 "retry_count": 0,
