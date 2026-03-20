@@ -167,10 +167,12 @@ class TelegramBridgeService:
                 
                 # 更新任务状态
                 if result['success']:
-                    await self.redis.update_task_status(
+                    await asyncio.to_thread(
+                        self.redis.update_task_status,
                         task_id,
                         'success',
-                        message_id=result['message_id']
+                        '',
+                        result['message_id']
                     )
                 else:
                     error_msg = result['error']
@@ -178,12 +180,12 @@ class TelegramBridgeService:
                     
                     if retry_count < self.max_retry:
                         logger.warning(f"⚠️ 任务 {task_id} 发送失败，{retry_count+1}/{self.max_retry} 重试: {error_msg}")
-                        await self.redis.update_task_status(task_id, 'retrying', error_msg=error_msg)
+                        await asyncio.to_thread(self.redis.update_task_status, task_id, 'retrying', error_msg)
                         await asyncio.sleep(self.config.get('telegram', {}).get('retry_interval', 2))
-                        await self.redis.retry_task(task_id)
+                        await asyncio.to_thread(self.redis.retry_task, task_id)
                     else:
                         logger.error(f"❌ 任务 {task_id} 发送失败，已达最大重试次数: {error_msg}")
-                        await self.redis.update_task_status(task_id, 'failed', error_msg=error_msg)
+                        await asyncio.to_thread(self.redis.update_task_status, task_id, 'failed', error_msg)
             
             except Exception as e:
                 logger.error(f"💥 消费任务异常: {str(e)}")
