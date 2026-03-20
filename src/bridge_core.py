@@ -208,7 +208,7 @@ class TelegramBridgeService:
                     if retry_count < self.max_retry:
                         task['retry_count'] += 1
                         logger.warning(f"⚠️ 任务 {task_id} 发送失败，{retry_count+1}/{self.max_retry} 重试: {error_msg}")
-                        await asyncio.to_thread(self.redis.update_task_status, task_id, 'retrying', error_msg)
+                        await asyncio.to_thread(self.redis.update_task_status, task_id, 'failed', error_msg)
                         await asyncio.sleep(self.config.get('telegram', {}).get('retry_interval', 2))
                         await asyncio.to_thread(self.redis.retry_task, task_id)
                     else:
