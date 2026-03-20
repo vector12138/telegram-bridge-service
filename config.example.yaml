@@ -1,0 +1,57 @@
+# Telegram 桥接服务配置
+# 完整功能：消息监听存储 + 中转发送 + API服务 + Webhook推送
+
+# 运行模式
+mode: "bot"  # 可选值: bot | user
+# - bot: Bot API模式，适合自动发消息，官方稳定
+# - user: 个人账号模式，可接收所有消息，模拟人工操作
+
+# ==================== Telegram 配置 ====================
+# Bot模式配置（mode=bot时生效）
+bot:
+  token: "123456789:ABCdefGhIJKlmNoPQRstUvWxYz1234567890"  # @BotFather获取的Token
+  allowed_updates: ["message", "callback_query"]  # 监听的更新类型
+  drop_pending_updates: true  # 启动时丢弃未处理的更新
+
+# User模式配置（mode=user时生效）
+user:
+  api_id: 123456  # 从 https://my.telegram.org/ 获取
+  api_hash: "your_api_hash_here"
+  phone_number: "+8613800138000"  # 绑定的手机号
+  session_file: "telegram_user.session"  # 会话保存路径
+
+# Telegram 通用配置
+telegram:
+  allowed_chat_ids: []  # 白名单聊天ID，空则允许所有
+  max_send_retry: 3  # 发送失败最大重试次数
+  retry_interval: 2  # 重试间隔（秒）
+  listen_outgoing: false  # User模式下是否监听自己发出的消息
+
+# ==================== Redis 配置 ====================
+redis:
+  host: "127.0.0.1"
+  port: 6379
+  db: 2
+  password: ""  # 无密码留空
+  key_prefix: "telegram:bridge:"
+  # 数据过期时间（秒）
+  message_expire: 86400 * 7  # 消息保存7天
+  task_expire: 86400 * 3  # 发送任务保存3天
+  max_recent_messages: 1000  # 最多保留的最近消息数量，超出自动清理
+
+# ==================== API 服务配置 ====================
+api:
+  host: "0.0.0.0"
+  port: 8080
+  api_key: "your_secure_api_key_here"  # 接口访问密钥，必填
+  debug: false
+  cors_allow_origins: ["*"]  # 跨域配置
+
+# ==================== Webhook 配置 ====================
+webhook:
+  enabled: false  # 是否启用Webhook推送
+  url: "https://your-server.com/webhook/telegram"  # 推送地址
+  secret: "your_webhook_sign_secret"  # 签名密钥，用于校验推送合法性
+  timeout: 10  # 推送超时时间（秒）
+  max_retry: 3  # 推送失败最大重试次数
+  retry_interval: 2  # 重试间隔（秒）
