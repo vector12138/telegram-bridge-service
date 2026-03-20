@@ -8,6 +8,7 @@ import json
 import hmac
 import hashlib
 import aiohttp
+import time
 from typing import Dict, Optional
 from loguru import logger
 from .telegram_client import create_telegram_client
@@ -184,7 +185,7 @@ class TelegramBridgeService:
                             "chat_id": task['chat_id'],
                             "chat_title": "",
                             "chat_type": "private",
-                            "sender_id": f"bot_{bot_info.id}",
+                            "sender_id": bot_info.id,
                             "sender_name": f"{bot_info.first_name} {bot_info.last_name or ''}".strip(),
                             "sender_username": bot_info.username or "",
                             "is_bot": True,
