@@ -174,6 +174,32 @@ class TelegramBridgeService:
                         '',
                         result['message_id']
                     )
+                    
+                    # 将发送成功的消息保存到消息存储
+                    try:
+                        # 获取Bot信息
+                        bot_info = await client.application.bot.get_me()
+                        sent_message = {
+                            "message_id": result['message_id'],
+                            "chat_id": task['chat_id'],
+                            "chat_title": "",
+                            "chat_type": "private",
+                            "sender_id": f"bot_{bot_info.id}",
+                            "sender_name": f"{bot_info.first_name} {bot_info.last_name or ''}".strip(),
+                            "sender_username": bot_info.username or "",
+                            "is_bot": True,
+                            "text": task['text'],
+                            "timestamp": int(time.time()),
+                            "date": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                            "has_media": False,
+                            "media_type": "",
+                            "source": "bot"
+                        }
+                        # 保存到Redis
+                        await asyncio.to_thread(self.redis.save_received_message, sent_message)
+                        logger.debug(f"✅ 已保存发送的消息: 任务ID={task_id}, 消息ID={result['message_id']}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ 保存发送消息失败: {str(e)}")
                 else:
                     error_msg = result['error']
                     retry_count = task['retry_count']
