@@ -170,8 +170,8 @@ async def retry_task(task_id: str):
 @app.get("/api/v1/message/received", summary="获取接收的消息列表", response_model=List[MessageResponse], dependencies=[Depends(verify_api_key)])
 async def get_received_messages(
     chat_id: Optional[int] = None,
-    limit: int = Field(default=100, ge=1, le=1000, description="返回数量，最大1000"),
-    offset: int = Field(default=0, ge=0, description="偏移量"),
+    limit: int = Query(default=100, ge=1, le=1000, description="返回数量，最大1000"),
+    offset: int = Query(default=0, ge=0, description="偏移量"),
     sender_id: Optional[int] = None
 ):
     """
