@@ -6,8 +6,9 @@ API 服务层，整合所有接口
 import yaml
 import time
 import asyncio
+import os
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, Depends, status, Request, Query
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
@@ -234,9 +235,28 @@ async def telegram_compatible_api(token: str, method: str, request: Request):
     if "disable_notification" in params:
         params["disable_notification"] = str(params["disable_notification"]).lower() in ["true", "1", "yes"]
     
-    # 处理常用方法
-    if method.lower() == "sendmessage":
-        # 发送消息方法，和官方完全兼容
+    # 支持的方法映射
+    supported_methods = {
+        "sendmessage": "text",
+        "sendphoto": "photo",
+        "senddocument": "document",
+        "sendvideo": "video",
+        "sendaudio": "audio",
+        "sendvoice": "voice"
+    }
+    
+    method_lower = method.lower()
+    if method_lower not in supported_methods:
+        # 其他方法后续扩展，目前返回不支持
+        return {
+            "ok": False,
+            "error_code": 405,
+            "description": f"Method Not Allowed: 暂不支持方法 {method}"
+        }
+    
+    # 处理不同类型的发送
+    if supported_methods[method_lower] == "text":
+        # 发送文本消息
         required_fields = ["chat_id", "text"]
         for field in required_fields:
             if field not in params:
@@ -295,13 +315,83 @@ async def telegram_compatible_api(token: str, method: str, request: Request):
             "error_code": 504,
             "description": "Gateway Timeout: 发送超时"
         }
-    
-    # 其他方法后续扩展，目前返回不支持
-    return {
-        "ok": False,
-        "error_code": 405,
-        "description": f"Method Not Allowed: 暂不支持方法 {method}"
-    }
+    else:
+        # 发送媒体消息
+        media_type = supported_methods[method_lower]
+        required_fields = ["chat_id"]
+        for field in required_fields:
+            if field not in params:
+                return {
+                    "ok": False,
+                    "error_code": 400,
+                    "description": f"Bad Request: 参数 {field} 是必填项"
+                }
+        
+        # 获取媒体文件：支持file_id、URL或者上传的文件
+        media = params.get(media_type)
+        if not media:
+            # 检查是否是上传的文件（form-data）
+            if media_type in params and hasattr(params[media_type], "file"):
+                # 上传的文件对象，直接读取字节
+                media = await params[media_type].read()
+            else:
+                return {
+                    "ok": False,
+                    "error_code": 400,
+                    "description": f"Bad Request: 参数 {media_type} 是必填项（文件、file_id或URL）"
+                }
+        
+        # 构造媒体发送任务
+        task_data = {
+            "chat_id": params["chat_id"],
+            "media_type": media_type,
+            "media": media,
+            "caption": params.get("caption", ""),
+            "parse_mode": params.get("parse_mode", "Markdown"),
+            "disable_notification": params.get("disable_notification", False),
+            "bot_token": token  # 使用路径中的Bot Token
+        }
+        
+        # 创建发送任务，同步等待结果
+        task_id = bridge.send_message(task_data)
+        if not task_id:
+            return {
+                "ok": False,
+                "error_code": 500,
+                "description": "Internal Server Error: 创建发送任务失败"
+            }
+        
+        # 等待发送完成（最多等待30秒，媒体文件可能比较大）
+        for _ in range(300):
+            task = bridge.get_task_status(task_id)
+            if task and task["status"] == "success":
+                # 返回和官方完全一致的响应格式
+                return {
+                    "ok": True,
+                    "result": {
+                        "message_id": task["message_id"],
+                        "chat": {
+                            "id": task["chat_id"],
+                            "type": "private"
+                        },
+                        "date": int(task["updated_at"]),
+                        "caption": params.get("caption", "")
+                    }
+                }
+            elif task and task["status"] == "failed":
+                return {
+                    "ok": False,
+                    "error_code": 400,
+                    "description": task["error_msg"]
+                }
+            await asyncio.sleep(0.1)
+        
+        # 超时
+        return {
+            "ok": False,
+            "error_code": 504,
+            "description": "Gateway Timeout: 媒体发送超时"
+        }
 
 
 # ==================== 服务生命周期 ====================

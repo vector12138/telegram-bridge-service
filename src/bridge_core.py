@@ -161,10 +161,17 @@ class TelegramBridgeService:
                 custom_bot_token = task.get('bot_token')
                 if custom_bot_token and self.mode == 'bot':
                     client = await self._get_custom_bot_client(custom_bot_token)
-                    result = await client.send_message(task)
                 else:
                     # User模式不支持自定义Token，使用默认客户端
-                    result = await self.client.send_message(task)
+                    client = self.client
+                
+                # 判断是文本消息还是媒体消息
+                if task.get('media_type'):
+                    # 媒体消息
+                    result = await client.send_media(task)
+                else:
+                    # 文本消息
+                    result = await client.send_message(task)
                 
                 # 更新任务状态
                 if result['success']:
