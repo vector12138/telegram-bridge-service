@@ -40,7 +40,7 @@ Environment=MALLOC_MMAP_THRESHOLD_=131072
 
 # 系统资源限制（防止服务占用过多资源）
 Nice=10
-MemoryLimit=128M
+MemoryLimit=256M
 CPUQuota=20%
 PrivateTmp=true
 NoNewPrivileges=true
