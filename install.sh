@@ -27,10 +27,26 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$PROJECT_DIR
-ExecStart=/bin/bash -c 'source $PROJECT_DIR/venv/bin/activate && python $PROJECT_DIR/main.py'
+# 优化启动命令：使用最高优化级别的Python解释器
+ExecStart=/bin/bash -c 'source $PROJECT_DIR/venv/bin/activate && python -OO $PROJECT_DIR/main.py'
 Restart=always
 RestartSec=5
+
+# 环境变量优化
 Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONOPTIMIZE=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=MALLOC_MMAP_THRESHOLD_=131072
+
+# 系统资源限制（防止服务占用过多资源）
+Nice=10
+MemoryLimit=128M
+CPUQuota=20%
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=$PROJECT_DIR/logs
+ProtectHome=read-only
 
 [Install]
 WantedBy=multi-user.target

@@ -332,10 +332,26 @@ def run_server():
     
     logger.info(f"🚀 启动API服务: http://{host}:{port}")
     logger.info(f"📚 接口文档地址: http://{host}:{port}/docs")
+    
+    # 优化配置：调试模式下保持默认，生产模式下开启所有优化
+    uvicorn_kwargs = {
+        "host": host,
+        "port": port,
+        "reload": debug,
+        "log_level": "info" if debug else "warning",
+    }
+    
+    if not debug:
+        # 生产环境优化参数
+        uvicorn_kwargs.update({
+            "workers": 1,  # 单进程，避免多进程内存开销
+            "limit_concurrency": 100,  # 限制并发数，防止内存暴涨
+            "access_log": False,  # 关闭访问日志，减少IO和内存占用
+            "loop": "uvloop",  # 使用更快的uvloop事件循环（自动兼容 fallback）
+            "http": "httptools",  # 使用更快的httptools解析HTTP
+        })
+    
     uvicorn.run(
         "src.api_server:app",
-        host=host,
-        port=port,
-        reload=debug,
-        log_level="info"
+        **uvicorn_kwargs
     )
