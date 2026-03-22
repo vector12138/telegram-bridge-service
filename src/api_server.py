@@ -339,16 +339,16 @@ async def telegram_compatible_api(token: str, method: str, request: Request):
         # 获取媒体文件：支持file_id、URL或者上传的文件
         media = params.get(media_type)
         if not media:
-            # 检查是否是上传的文件（form-data）
-            if media_type in params and hasattr(params[media_type], "file"):
-                # 上传的文件对象，直接读取字节
-                media = await params[media_type].read()
-            else:
-                return {
-                    "ok": False,
-                    "error_code": 400,
-                    "description": f"Bad Request: 参数 {media_type} 是必填项（文件、file_id或URL）"
-                }
+            return {
+                "ok": False,
+                "error_code": 400,
+                "description": f"Bad Request: 参数 {media_type} 是必填项（文件、file_id或URL）"
+            }
+        
+        # 处理上传的文件对象（FastAPI UploadFile）
+        if hasattr(media, "read") and asyncio.iscoroutinefunction(media.read):
+            # 是异步文件对象，读取内容
+            media = await media.read()
         
         # 构造媒体发送任务
         task_data = {

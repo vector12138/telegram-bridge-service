@@ -182,20 +182,20 @@ class RedisManager:
             if 'media_type' in task_data:
                 task['media_type'] = task_data['media_type']
                 media = task_data['media']
-                # 处理文件对象/二进制内容：转base64存储
-                if hasattr(media, 'read'):
-                    # 是文件类对象（比如FastAPI的UploadFile），读取内容
-                    media_content = media.read()
-                    task['media'] = f"base64:{base64.b64encode(media_content).decode('utf-8')}"
-                elif isinstance(media, bytes):
+                # 媒体内容必须是bytes或者str类型（上层已经处理文件读取）
+                if isinstance(media, bytes):
                     # 是二进制内容，直接转base64
                     task['media'] = f"base64:{base64.b64encode(media).decode('utf-8')}"
                 elif isinstance(media, str):
-                    # 是字符串（file_id/URL），直接存储
+                    # 是字符串（file_id/URL/base64），直接存储
                     task['media'] = media
                 else:
                     # 其他类型尝试JSON序列化
-                    task['media'] = json.dumps(media)
+                    try:
+                        task['media'] = json.dumps(media)
+                    except Exception as e:
+                        logger.error(f"媒体内容序列化失败: {str(e)}")
+                        raise
                 task['caption'] = task_data.get('caption', '')
             
             # 保存任务详情
