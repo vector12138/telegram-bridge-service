@@ -425,6 +425,7 @@ async def shutdown_event():
 
 def run_server():
     """启动API服务器"""
+    import platform
     host = api_config.get('host', '0.0.0.0')
     port = api_config.get('port', 8080)
     debug = api_config.get('debug', False)
@@ -442,19 +443,26 @@ def run_server():
     
     if not debug:
         # 生产环境优化参数，极致内存压缩
-        uvicorn_kwargs.update({
+        production_kwargs = {
             "workers": 1,  # 必须单进程，避免多进程内存开销
             "limit_concurrency": 50,  # 限制并发数，防止内存暴涨
             "access_log": False,  # 关闭访问日志，减少IO和内存占用
-            "loop": "uvloop",  # 使用更快的uvloop事件循环（自动兼容 fallback）
-            "http": "httptools",  # 使用更快的httptools解析HTTP
             "server_header": False,  # 关闭Server响应头
             "date_header": False,  # 关闭Date响应头
             "limit_max_requests": 10000,  # 每处理10000个请求自动重启，避免内存泄漏
             "timeout_keep_alive": 5,  # 减少空闲连接超时时间，尽快释放资源
             "backlog": 128,  # 限制TCP连接队列长度，减少内存占用
             "use_colors": False,  # 关闭日志颜色，减少开销
-        })
+        }
+        
+        # Windows平台不支持uvloop和httptools，仅Linux/macOS下使用
+        if platform.system() != 'Windows':
+            production_kwargs.update({
+                "loop": "uvloop",  # 使用更快的uvloop事件循环
+                "http": "httptools",  # 使用更快的httptools解析HTTP
+            })
+        
+        uvicorn_kwargs.update(production_kwargs)
     
     uvicorn.run(
         "src.api_server:app",

@@ -166,22 +166,44 @@ redis:
 
 ## 🛠 部署建议
 
-### 生产环境使用 PM2 后台运行
+### Linux/macOS 部署
+#### 生产环境使用 PM2 后台运行
 ```bash
 npm install -g pm2
 pm2 start main.py --name telegram-bridge --interpreter python3
 ```
 
-### 开机自启
+#### 开机自启
 ```bash
 pm2 save
 pm2 startup
 ```
 
-### 查看日志
+#### 查看日志
 ```bash
 pm2 logs telegram-bridge
 ```
+
+---
+
+### Windows 部署
+#### 快速启动
+1. 下载并解压项目到本地目录
+2. 双击运行 `install.bat` 自动安装虚拟环境和依赖
+3. 编辑 `config.yaml` 配置文件，填写相关信息
+4. 双击运行 `start.bat` 启动服务
+
+#### 后台运行/开机自启
+推荐使用 **NSSM** (Non-Sucking Service Manager) 将服务注册为Windows系统服务：
+1. 下载NSSM：https://nssm.cc/download
+2. 解压后打开命令提示符，进入nssm目录
+3. 执行 `nssm install TelegramBridge`
+4. 在弹出的界面中：
+   - **Path**: 选择项目目录下的 `venv\Scripts\python.exe`
+   - **Arguments**: 填写 `main.py`
+   - **Working directory**: 选择项目根目录
+5. 点击「Install」安装服务
+6. 打开服务管理，找到 `TelegramBridge` 服务，设置为自动启动并启动服务
 
 ## ⚠️ 注意事项
 

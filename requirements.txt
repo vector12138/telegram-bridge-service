@@ -9,6 +9,6 @@ pyyaml==6.0.2
 python-dotenv==1.0.1
 loguru==0.7.2
 python-multipart==0.0.12
-# 性能优化依赖
-uvloop==0.21.0
-httptools==0.6.4
+# 性能优化依赖（仅Linux/macOS需要，Windows下不需要安装）
+uvloop==0.21.0; sys_platform != 'win32'
+httptools==0.6.4; sys_platform != 'win32'
