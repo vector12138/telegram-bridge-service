@@ -32,15 +32,18 @@ ExecStart=/bin/bash -c 'source $PROJECT_DIR/venv/bin/activate && python -OO $PRO
 Restart=always
 RestartSec=5
 
-# 环境变量优化
+# 环境变量优化：极致内存压缩
 Environment=PYTHONUNBUFFERED=1
-Environment=PYTHONOPTIMIZE=1
+Environment=PYTHONOPTIMIZE=2
 Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=MALLOC_TRIM_THRESHOLD_=65536
 Environment=MALLOC_MMAP_THRESHOLD_=131072
+Environment=PYTHONMALLOC=malloc
 
-# 系统资源限制（防止服务占用过多资源）
+# 系统资源限制（128M内存限制）
 Nice=10
-MemoryLimit=256M
+MemoryLimit=128M
+MemoryHigh=120M
 CPUQuota=20%
 PrivateTmp=true
 NoNewPrivileges=true

@@ -31,12 +31,21 @@ config = load_config()
 api_config = config.get('api', {})
 bridge = get_bridge_service(config)
 
-# 初始化FastAPI
-app = FastAPI(
-    title="Telegram Bridge Service API",
-    description="完整的Telegram桥接服务API，支持消息收发、查询、搜索、任务管理",
-    version="1.0.0"
-)
+# 初始化FastAPI，生产模式关闭自动文档，减少内存占用
+fastapi_kwargs = {
+    "title": "Telegram Bridge Service API",
+    "description": "完整的Telegram桥接服务API，支持消息收发、查询、搜索、任务管理",
+    "version": "1.0.0",
+    "debug": api_config.get('debug', False)
+}
+if not api_config.get('debug', False):
+    fastapi_kwargs.update({
+        "docs_url": None,
+        "redoc_url": None,
+        "openapi_url": None
+    })
+
+app = FastAPI(**fastapi_kwargs)
 
 # CORS配置
 app.add_middleware(
@@ -432,13 +441,19 @@ def run_server():
     }
     
     if not debug:
-        # 生产环境优化参数
+        # 生产环境优化参数，极致内存压缩
         uvicorn_kwargs.update({
-            "workers": 1,  # 单进程，避免多进程内存开销
-            "limit_concurrency": 100,  # 限制并发数，防止内存暴涨
+            "workers": 1,  # 必须单进程，避免多进程内存开销
+            "limit_concurrency": 50,  # 限制并发数，防止内存暴涨
             "access_log": False,  # 关闭访问日志，减少IO和内存占用
             "loop": "uvloop",  # 使用更快的uvloop事件循环（自动兼容 fallback）
             "http": "httptools",  # 使用更快的httptools解析HTTP
+            "server_header": False,  # 关闭Server响应头
+            "date_header": False,  # 关闭Date响应头
+            "limit_max_requests": 10000,  # 每处理10000个请求自动重启，避免内存泄漏
+            "timeout_keep_alive": 5,  # 减少空闲连接超时时间，尽快释放资源
+            "backlog": 128,  # 限制TCP连接队列长度，减少内存占用
+            "use_colors": False,  # 关闭日志颜色，减少开销
         })
     
     uvicorn.run(

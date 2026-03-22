@@ -5,11 +5,19 @@ Telegram Bridge Service - 启动入口
 集消息监听、存储、中转发送、API服务于一体的完整Telegram桥接服务
 """
 import os
+import sys
 import argparse
-from loguru import logger
+
+# 开启最高级别优化，减少内存占用
+sys.dont_write_bytecode = True
+os.environ['PYTHONOPTIMIZE'] = '2'
+os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+os.environ['PYTHONUNBUFFERED'] = '1'
 
 # 日志配置：同时输出到终端和文件（必须放在业务模块导入之前，捕获导入错误）
 os.makedirs("logs", exist_ok=True)
+from loguru import logger
+
 # 清除默认的终端输出配置
 logger.remove()
 # 添加终端输出
@@ -31,8 +39,6 @@ logger.add(
     enqueue=True       # 异步写入，避免阻塞
 )
 
-from src.api_server import run_server
-
 
 def main():
     parser = argparse.ArgumentParser(description="Telegram Bridge Service")
@@ -40,6 +46,8 @@ def main():
     args = parser.parse_args()
     
     logger.info(f"📄 使用配置文件: {args.config}")
+    # 延迟导入业务模块，避免启动时提前加载大依赖
+    from src.api_server import run_server
     run_server()
 
 

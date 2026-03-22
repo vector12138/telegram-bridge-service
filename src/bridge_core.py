@@ -7,19 +7,11 @@ import asyncio
 import json
 import hmac
 import hashlib
-import aiohttp
 import time
-from typing import Dict, Optional
-from loguru import logger
-from .telegram_client import create_telegram_client
-from .redis_manager import get_redis_manager
-
-
-from telegram.ext import ApplicationBuilder
-from .telegram_client import BotTelegramClient
-import asyncio
 from typing import Dict, Optional, Callable, Any
 from loguru import logger
+from .telegram_client import create_telegram_client, BotTelegramClient
+from .redis_manager import get_redis_manager
 
 
 class TelegramBridgeService:
@@ -242,6 +234,8 @@ class TelegramBridgeService:
     async def _push_to_webhook(self, message: Dict):
         """推送消息到Webhook"""
         try:
+            # 延迟导入aiohttp，只有在启用webhook时才加载
+            import aiohttp
             url = self.webhook_config.get('url')
             secret = self.webhook_config.get('secret', '')
             timeout = self.webhook_config.get('timeout', 10)
