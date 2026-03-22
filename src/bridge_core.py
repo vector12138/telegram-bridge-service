@@ -188,11 +188,11 @@ class TelegramBridgeService:
                             "sender_name": f"{bot_info.first_name} {bot_info.last_name or ''}".strip(),
                             "sender_username": bot_info.username or "",
                             "is_bot": True,
-                            "text": task['text'],
+                            "text": task.get('text', task.get('caption', '')),
                             "timestamp": int(time.time()),
                             "date": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                            "has_media": False,
-                            "media_type": "",
+                            "has_media": 'media_type' in task,
+                            "media_type": task.get('media_type', ''),
                             "source": "bot"
                         }
                         # 保存到Redis
