@@ -175,6 +175,9 @@ class TelegramBridgeService:
                         result['message_id']
                     )
                     
+                    # 发送成功，清除媒体内容释放内存
+                    await asyncio.to_thread(self.redis.clear_task_media, task_id)
+                    
                     # 将发送成功的消息保存到消息存储
                     try:
                         # 获取Bot信息
@@ -213,6 +216,8 @@ class TelegramBridgeService:
                     else:
                         logger.error(f"❌ 任务 {task_id} 发送失败，已达最大重试次数: {error_msg}")
                         await asyncio.to_thread(self.redis.update_task_status, task_id, 'failed', error_msg)
+                        # 最终发送失败，清除媒体内容释放内存
+                        await asyncio.to_thread(self.redis.clear_task_media, task_id)
             
             except Exception as e:
                 logger.error(f"💥 消费任务异常: {str(e)}")

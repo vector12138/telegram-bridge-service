@@ -282,6 +282,21 @@ class RedisManager:
             logger.error(f"重试任务失败: {str(e)}")
             return False
     
+    def clear_task_media(self, task_id: str) -> bool:
+        """清除任务中的媒体内容，仅保留元信息，释放Redis内存"""
+        try:
+            key = f"{self.prefix}task:{task_id}"
+            if not self.client.exists(key):
+                return False
+            
+            # 仅删除大体积的media字段，其他元信息保留
+            self.client.hdel(key, "media")
+            logger.debug(f"🧹 已清除任务 {task_id} 的媒体内容，释放内存")
+            return True
+        except Exception as e:
+            logger.error(f"清除任务媒体内容失败: {str(e)}")
+            return False
+    
     # ==================== 统计信息 ====================
     def get_stats(self) -> Dict:
         """获取系统统计"""
