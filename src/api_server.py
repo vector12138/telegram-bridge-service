@@ -29,7 +29,7 @@ def load_config(config_path: str = "config.yaml") -> Dict:
 
 config = load_config()
 api_config = config.get('api', {})
-MAX_MEDIA_SIZE = api_config.get('max_media_size', 10 * 1024 * 1024)  # 默认10MB
+MAX_MEDIA_SIZE = api_config.get('max_media_size', 100 * 1024 * 1024)  # 默认100MB
 bridge = get_bridge_service(config)
 
 # 初始化FastAPI，生产模式关闭自动文档，减少内存占用

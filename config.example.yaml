@@ -46,7 +46,7 @@ api:
   api_key: "your_secure_api_key_here"  # 接口访问密钥，必填
   debug: false
   cors_allow_origins: ["*"]  # 跨域配置
-  max_media_size: 10485760  # 最大允许上传的媒体文件大小，默认10MB（字节），0表示不限制
+  max_media_size: 104857600  # 最大允许上传的媒体文件大小，默认100MB（字节），0表示不限制
 
 # ==================== Webhook 配置 ====================
 webhook:
