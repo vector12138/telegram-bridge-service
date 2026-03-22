@@ -29,6 +29,7 @@ def load_config(config_path: str = "config.yaml") -> Dict:
 
 config = load_config()
 api_config = config.get('api', {})
+MAX_MEDIA_SIZE = api_config.get('max_media_size', 10 * 1024 * 1024)  # 默认10MB
 bridge = get_bridge_service(config)
 
 # 初始化FastAPI，生产模式关闭自动文档，减少内存占用
@@ -349,6 +350,14 @@ async def telegram_compatible_api(token: str, method: str, request: Request):
         if hasattr(media, "read") and asyncio.iscoroutinefunction(media.read):
             # 是异步文件对象，读取内容
             media = await media.read()
+        
+        # 校验媒体大小，仅对直接上传的二进制内容校验
+        if MAX_MEDIA_SIZE > 0 and isinstance(media, bytes) and len(media) > MAX_MEDIA_SIZE:
+            return {
+                "ok": False,
+                "error_code": 413,
+                "description": f"Payload Too Large: 媒体文件大小超出限制，最大允许 {MAX_MEDIA_SIZE//1024//1024} MB"
+            }
         
         # 构造媒体发送任务
         task_data = {
