@@ -5,6 +5,7 @@ Redis 管理器，整合消息存储、任务队列、统计功能
 """
 import json
 import time
+import base64
 from typing import Dict, List, Optional, Any
 import redis
 from loguru import logger
@@ -180,7 +181,21 @@ class RedisManager:
             # 媒体消息字段
             if 'media_type' in task_data:
                 task['media_type'] = task_data['media_type']
-                task['media'] = task_data['media'] if isinstance(task_data['media'], str) else json.dumps(task_data['media'])
+                media = task_data['media']
+                # 处理文件对象/二进制内容：转base64存储
+                if hasattr(media, 'read'):
+                    # 是文件类对象（比如FastAPI的UploadFile），读取内容
+                    media_content = media.read()
+                    task['media'] = f"base64:{base64.b64encode(media_content).decode('utf-8')}"
+                elif isinstance(media, bytes):
+                    # 是二进制内容，直接转base64
+                    task['media'] = f"base64:{base64.b64encode(media).decode('utf-8')}"
+                elif isinstance(media, str):
+                    # 是字符串（file_id/URL），直接存储
+                    task['media'] = media
+                else:
+                    # 其他类型尝试JSON序列化
+                    task['media'] = json.dumps(media)
                 task['caption'] = task_data.get('caption', '')
             
             # 保存任务详情
@@ -326,13 +341,22 @@ class RedisManager:
                 task[field] = int(float(task[field])) if '.' in task[field] else int(task[field])
         if 'disable_notification' in task:
             task['disable_notification'] = task['disable_notification'] == 'True'
-        # 媒体字段处理：如果是JSON字符串反序列化
+        # 媒体字段处理
         if 'media' in task:
-            try:
-                task['media'] = json.loads(task['media'])
-            except:
-                # 不是JSON，保留原始字符串（比如file_id、URL）
-                pass
+            media_val = task['media']
+            if isinstance(media_val, str):
+                if media_val.startswith('base64:'):
+                    # base64编码的二进制内容，解码回bytes
+                    try:
+                        task['media'] = base64.b64decode(media_val[7:])
+                    except:
+                        logger.warning(f"媒体内容base64解码失败，保留原始值")
+                else:
+                    # 尝试JSON反序列化，否则保留原始字符串（file_id/URL）
+                    try:
+                        task['media'] = json.loads(media_val)
+                    except:
+                        pass
         return task
 
 
