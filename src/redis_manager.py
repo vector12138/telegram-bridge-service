@@ -161,10 +161,10 @@ class RedisManager:
         """创建发送任务，返回任务ID"""
         try:
             task_id = f"{int(time.time() * 1000)}_{hash(str(task_data)) & 0xFFFFFF}"
+            # 基础任务字段
             task = {
                 "task_id": task_id,
                 "chat_id": str(task_data['chat_id']),
-                "text": task_data['text'],
                 "parse_mode": task_data.get('parse_mode', 'Markdown'),
                 "disable_notification": str(task_data.get('disable_notification', False)),
                 "bot_token": task_data.get('bot_token', ''),
@@ -174,6 +174,15 @@ class RedisManager:
                 "error_msg": ""
             }
             
+            # 文本消息字段
+            if 'text' in task_data:
+                task['text'] = task_data['text']
+            # 媒体消息字段
+            if 'media_type' in task_data:
+                task['media_type'] = task_data['media_type']
+                task['media'] = task_data['media'] if isinstance(task_data['media'], str) else json.dumps(task_data['media'])
+                task['caption'] = task_data.get('caption', '')
+            
             # 保存任务详情
             key = f"{self.prefix}task:{task_id}"
             self.client.hset(key, mapping=task)
@@ -182,7 +191,7 @@ class RedisManager:
             # 加入待发送队列
             self.client.rpush(f"{self.prefix}queue:pending", task_id)
             
-            logger.info(f"📤 发送任务创建成功: ID={task_id}, 目标={task['chat_id']}")
+            logger.info(f"📤 发送任务创建成功: ID={task_id}, 目标={task['chat_id']}, 类型={'媒体' if 'media_type' in task else '文本'}")
             return task_id
         except Exception as e:
             logger.error(f"创建发送任务失败: {str(e)}")
@@ -317,6 +326,13 @@ class RedisManager:
                 task[field] = int(float(task[field])) if '.' in task[field] else int(task[field])
         if 'disable_notification' in task:
             task['disable_notification'] = task['disable_notification'] == 'True'
+        # 媒体字段处理：如果是JSON字符串反序列化
+        if 'media' in task:
+            try:
+                task['media'] = json.loads(task['media'])
+            except:
+                # 不是JSON，保留原始字符串（比如file_id、URL）
+                pass
         return task
 
 

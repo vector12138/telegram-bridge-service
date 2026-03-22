@@ -364,6 +364,39 @@ class UserTelegramClient(BaseTelegramClient):
         
         return {"success": False, "error": f"发送失败，已重试{self.max_retry}次: {error}"}
     
+    async def send_media(self, task: Dict) -> Dict:
+        """发送媒体消息，支持图片、文件、视频、音频等"""
+        chat_id = task.get('chat_id')
+        media_type = task.get('media_type')  # photo/document/video/audio/voice
+        media = task.get('media')  # 文件路径、字节或者file_id
+        caption = task.get('caption', '')
+        parse_mode = task.get('parse_mode', 'md')
+        disable_notification = task.get('disable_notification', False)
+        
+        if not chat_id or not media_type or not media:
+            return {"success": False, "error": "缺少chat_id、media_type或media参数"}
+        
+        if not self._is_chat_allowed(chat_id):
+            return {"success": False, "error": f"聊天ID {chat_id} 不在白名单中"}
+        
+        for retry in range(self.max_retry):
+            try:
+                msg = await self.client.send_file(
+                    entity=chat_id,
+                    file=media,
+                    caption=caption,
+                    parse_mode=parse_mode if parse_mode != "None" else None,
+                    silent=disable_notification
+                )
+                return {"success": True, "message_id": msg.id}
+            except Exception as e:
+                error = str(e)
+                logger.warning(f"发送{media_type}失败（第{retry+1}次重试）: {error}")
+                if retry < self.max_retry - 1:
+                    await asyncio.sleep(self.retry_interval)
+        
+        return {"success": False, "error": f"发送{media_type}失败，已重试{self.max_retry}次: {error}"}
+    
     async def _handle_message(self, event):
         """处理收到的消息"""
         try:
