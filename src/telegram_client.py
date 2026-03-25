@@ -166,18 +166,29 @@ class BotTelegramClient(BaseTelegramClient):
         if not self._is_chat_allowed(chat_id):
             return {"success": False, "error": f"聊天ID {chat_id} 不在白名单中"}
         
+        current_parse_mode = parse_mode if parse_mode != "None" else None
+        
         for retry in range(self.max_retry):
             try:
                 msg = await self.application.bot.send_message(
                     chat_id=chat_id,
                     text=text,
-                    parse_mode=parse_mode if parse_mode != "None" else None,
+                    parse_mode=current_parse_mode,
                     disable_notification=disable_notification
                 )
                 return {"success": True, "message_id": msg.message_id}
             except Exception as e:
                 error = str(e)
                 logger.warning(f"发送失败（第{retry+1}次重试）: {error}")
+                
+                # 如果是Markdown/HTML解析错误，下一次重试去掉格式解析
+                if "parse entities" in error or "Can't parse" in error or "invalid markdown" in error:
+                    if current_parse_mode is not None:
+                        logger.warning(f"检测到格式解析错误，自动降级为纯文本发送")
+                        current_parse_mode = None
+                        # 不等待，立即重试纯文本模式
+                        continue
+                
                 if retry < self.max_retry - 1:
                     await asyncio.sleep(self.retry_interval)
         
@@ -210,6 +221,7 @@ class BotTelegramClient(BaseTelegramClient):
             return {"success": False, "error": f"不支持的媒体类型: {media_type}"}
         
         send_method = send_method_map[media_type]
+        current_parse_mode = parse_mode if parse_mode != "None" else None
         
         for retry in range(self.max_retry):
             try:
@@ -217,13 +229,22 @@ class BotTelegramClient(BaseTelegramClient):
                     chat_id=chat_id,
                     **{media_type: media},
                     caption=caption,
-                    parse_mode=parse_mode if parse_mode != "None" else None,
+                    parse_mode=current_parse_mode,
                     disable_notification=disable_notification
                 )
                 return {"success": True, "message_id": msg.message_id}
             except Exception as e:
                 error = str(e)
                 logger.warning(f"发送{media_type}失败（第{retry+1}次重试）: {error}")
+                
+                # 如果是Markdown/HTML解析错误，下一次重试去掉格式解析
+                if "parse entities" in error or "Can't parse" in error or "invalid markdown" in error:
+                    if current_parse_mode is not None:
+                        logger.warning(f"检测到caption格式解析错误，自动降级为纯文本发送")
+                        current_parse_mode = None
+                        # 不等待，立即重试纯文本模式
+                        continue
+                
                 if retry < self.max_retry - 1:
                     await asyncio.sleep(self.retry_interval)
         
@@ -347,18 +368,29 @@ class UserTelegramClient(BaseTelegramClient):
         if not self._is_chat_allowed(chat_id):
             return {"success": False, "error": f"聊天ID {chat_id} 不在白名单中"}
         
+        current_parse_mode = parse_mode if parse_mode != "None" else None
+        
         for retry in range(self.max_retry):
             try:
                 msg = await self.client.send_message(
                     entity=chat_id,
                     message=text,
-                    parse_mode=parse_mode if parse_mode != "None" else None,
+                    parse_mode=current_parse_mode,
                     silent=disable_notification
                 )
                 return {"success": True, "message_id": msg.id}
             except Exception as e:
                 error = str(e)
                 logger.warning(f"发送失败（第{retry+1}次重试）: {error}")
+                
+                # 如果是Markdown/HTML解析错误，下一次重试去掉格式解析
+                if "parse entities" in error or "Can't parse" in error or "invalid markdown" in error:
+                    if current_parse_mode is not None:
+                        logger.warning(f"检测到格式解析错误，自动降级为纯文本发送")
+                        current_parse_mode = None
+                        # 不等待，立即重试纯文本模式
+                        continue
+                
                 if retry < self.max_retry - 1:
                     await asyncio.sleep(self.retry_interval)
         
@@ -379,19 +411,30 @@ class UserTelegramClient(BaseTelegramClient):
         if not self._is_chat_allowed(chat_id):
             return {"success": False, "error": f"聊天ID {chat_id} 不在白名单中"}
         
+        current_parse_mode = parse_mode if parse_mode != "None" else None
+        
         for retry in range(self.max_retry):
             try:
                 msg = await self.client.send_file(
                     entity=chat_id,
                     file=media,
                     caption=caption,
-                    parse_mode=parse_mode if parse_mode != "None" else None,
+                    parse_mode=current_parse_mode,
                     silent=disable_notification
                 )
                 return {"success": True, "message_id": msg.id}
             except Exception as e:
                 error = str(e)
                 logger.warning(f"发送{media_type}失败（第{retry+1}次重试）: {error}")
+                
+                # 如果是Markdown/HTML解析错误，下一次重试去掉格式解析
+                if "parse entities" in error or "Can't parse" in error or "invalid markdown" in error:
+                    if current_parse_mode is not None:
+                        logger.warning(f"检测到caption格式解析错误，自动降级为纯文本发送")
+                        current_parse_mode = None
+                        # 不等待，立即重试纯文本模式
+                        continue
+                
                 if retry < self.max_retry - 1:
                     await asyncio.sleep(self.retry_interval)
         
