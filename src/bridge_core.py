@@ -12,6 +12,7 @@ from typing import Dict, Optional, Callable, Any
 from loguru import logger
 from .telegram_client import create_telegram_client, BotTelegramClient
 from .redis_manager import get_redis_manager
+from .utils import async_retry
 
 
 class TelegramBridgeService:
@@ -48,26 +49,14 @@ class TelegramBridgeService:
         self._consumer_task = asyncio.create_task(self._consume_send_tasks())
         logger.info("📥 发送任务消费协程已启动")
         
-        # 启动Telegram客户端，带重试
-        for retry in range(max_start_retry):
-            try:
-                logger.info(f"🚀 第 {retry+1}/{max_start_retry} 次尝试启动Telegram客户端...")
-                await self.client.start()
-                return
-            except Exception as e:
-                error = str(e)
-                if "NetworkError" in error or "ConnectError" in error or "Connection refused" in error or "timeout" in error:
-                    logger.error(f"❌ 客户端启动网络异常: {error}")
-                    if retry < max_start_retry - 1:
-                        logger.info(f"⏳ {start_retry_interval}秒后重试...")
-                        await asyncio.sleep(start_retry_interval)
-                    else:
-                        logger.error(f"💥 已达最大启动重试次数 {max_start_retry} 次，启动失败")
-                        raise
-                else:
-                    # 非网络异常直接抛出
-                    logger.error(f"❌ 客户端启动非网络异常: {error}")
-                    raise
+        # 启动Telegram客户端，使用统一重试逻辑
+        logger.info(f"🚀 尝试启动Telegram客户端，最多重试{max_start_retry}次...")
+        await async_retry(
+            self.client.start,
+            max_retries=max_start_retry,
+            retry_interval=start_retry_interval
+        )
+        logger.info("✅ Telegram客户端启动成功")
     
     async def stop(self):
         """停止服务"""
@@ -144,35 +133,27 @@ class TelegramBridgeService:
             max_init_retry = self.telegram_config.get('max_init_retry', 3)
             init_retry_interval = self.telegram_config.get('init_retry_interval', 2)
             
-            # 创建新的Bot客户端，带初始化重试
-            for retry in range(max_init_retry):
-                try:
-                    logger.info(f"🔌 第 {retry+1}/{max_init_retry} 次尝试初始化自定义Bot客户端，Token前缀: {bot_token[:10]}...")
-                    custom_config = self.config.copy()
-                    custom_config['bot']['token'] = bot_token
-                    # 自定义Bot不需要监听消息，所以传入空的回调
-                    client = BotTelegramClient(custom_config, lambda x: asyncio.sleep(0))
-                    # 初始化客户端
-                    await client.application.initialize()
-                    await client.application.start()
-                    
-                    self._bot_clients_cache[bot_token] = client
-                    logger.info(f"✅ 自定义Bot客户端初始化成功，Token前缀: {bot_token[:10]}...")
-                    return client
-                except Exception as e:
-                    error = str(e)
-                    if "NetworkError" in error or "ConnectError" in error or "Connection refused" in error or "timeout" in error:
-                        logger.error(f"❌ 自定义Bot初始化网络异常: {error}")
-                        if retry < max_init_retry - 1:
-                            logger.info(f"⏳ {init_retry_interval}秒后重试...")
-                            await asyncio.sleep(init_retry_interval)
-                        else:
-                            logger.error(f"💥 自定义Bot初始化已达最大重试次数 {max_init_retry} 次，失败")
-                            raise
-                    else:
-                        # 非网络异常直接抛出
-                        logger.error(f"❌ 自定义Bot初始化非网络异常: {error}")
-                        raise
+            async def init_custom_bot():
+                logger.info(f"🔌 初始化自定义Bot客户端，Token前缀: {bot_token[:10]}...")
+                custom_config = self.config.copy()
+                custom_config['bot']['token'] = bot_token
+                # 自定义Bot不需要监听消息，所以传入空的回调
+                client = BotTelegramClient(custom_config, lambda x: asyncio.sleep(0))
+                # 初始化客户端
+                await client.application.initialize()
+                await client.application.start()
+                return client
+            
+            # 使用统一重试逻辑初始化
+            client = await async_retry(
+                init_custom_bot,
+                max_retries=max_init_retry,
+                retry_interval=init_retry_interval
+            )
+            
+            self._bot_clients_cache[bot_token] = client
+            logger.info(f"✅ 自定义Bot客户端初始化成功，Token前缀: {bot_token[:10]}...")
+            return client
     
     # ==================== 内部逻辑 ====================
     async def _save_sent_message(self, task: Dict, success: bool, message_id: Optional[int] = None, error_msg: str = "", client = None):

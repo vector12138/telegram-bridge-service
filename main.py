@@ -52,7 +52,9 @@ logger.add(
     sink=lambda msg: print(msg, end=""),
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
     level="INFO",
-    colorize=True
+    colorize=True,
+    backtrace=False,  # 关闭完整调用栈打印
+    diagnose=False    # 关闭异常诊断信息
 )
 # 添加文件输出（按天切割，保留7天日志）
 logger.add(
@@ -63,7 +65,9 @@ logger.add(
     retention=7,       # 保留最近7天日志
     compression="zip", # 旧日志自动压缩
     encoding="utf-8",
-    enqueue=True       # 异步写入，避免阻塞
+    enqueue=True,      # 异步写入，避免阻塞
+    backtrace=True,    # 日志文件保留完整栈便于排查问题
+    diagnose=True
 )
 
 
