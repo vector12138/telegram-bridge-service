@@ -20,9 +20,10 @@ class TelegramBridgeService:
     def __init__(self, config: Dict):
         self.config = config
         self.mode = config.get('mode', 'bot')
+        self.telegram_config = config.get('telegram', {})
         self.redis = get_redis_manager(config.get('redis', {}))
         self.webhook_config = config.get('webhook', {})
-        self.max_retry = config.get('telegram', {}).get('max_send_retry', 3)
+        self.max_retry = self.telegram_config.get('max_send_retry', 3)
         
         # 创建默认Telegram客户端
         self.client = create_telegram_client(config, self._on_receive_message)
