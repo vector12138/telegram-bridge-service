@@ -242,10 +242,16 @@ class TelegramBridgeService:
                     retry_count = task['retry_count']
                     
                     if retry_count < self.max_retry:
-                        task['retry_count'] += 1
-                        logger.warning(f"⚠️ 任务 {task_id} 发送失败，{retry_count+1}/{self.max_retry} 重试: {error_msg}")
-                        await asyncio.to_thread(self.redis.update_task_status, task_id, 'failed', error_msg)
-                        await asyncio.sleep(self.config.get('telegram', {}).get('retry_interval', 2))
+                        logger.warning(f"⚠️ 任务 {task_id} 发送失败，第{retry_count+1}/{self.max_retry}次重试: {error_msg}")
+                        # 重试时更新重试次数，状态保持pending
+                        await asyncio.to_thread(
+                            self.redis.update_task_status,
+                            task_id,
+                            'pending',
+                            error_msg
+                        )
+                        await asyncio.sleep(self.telegram_config.get('retry_interval', 2))
+                        # 重新入队
                         await asyncio.to_thread(self.redis.retry_task, task_id)
                     else:
                         logger.error(f"❌ 任务 {task_id} 发送失败，已达最大重试次数: {error_msg}")
@@ -263,7 +269,15 @@ class TelegramBridgeService:
                         task_id = task['task_id']
                         retry_count = task['retry_count']
                         if retry_count < self.max_retry:
-                            logger.warning(f"♻️ 异常任务 {task_id} 重新入队重试，当前重试次数: {retry_count}/{self.max_retry}")
+                            logger.warning(f"♻️ 异常任务 {task_id} 重新入队重试，当前重试次数: {retry_count+1}/{self.max_retry}")
+                            # 重试时更新重试次数，状态保持pending
+                            await asyncio.to_thread(
+                                self.redis.update_task_status,
+                                task_id,
+                                'pending',
+                                f"消费异常: {str(e)}"
+                            )
+                            await asyncio.sleep(self.telegram_config.get('retry_interval', 2))
                             await asyncio.to_thread(self.redis.retry_task, task_id)
                         else:
                             logger.error(f"❌ 异常任务 {task_id} 已达最大重试次数，标记为失败")

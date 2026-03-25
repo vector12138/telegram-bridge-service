@@ -246,11 +246,11 @@ class RedisManager:
             
             if error_msg:
                 update_data['error_msg'] = error_msg
-            if message_id:
-                update_data['message_id'] = str(message_id)
-            if status == "failed":
+                # 只要有错误信息，不管是临时失败还是最终失败，都累加重试次数
                 retry_count = int(self.client.hget(key, 'retry_count'))
                 update_data['retry_count'] = str(retry_count + 1)
+            if message_id:
+                update_data['message_id'] = str(message_id)
             
             self.client.hset(key, mapping=update_data)
             logger.info(f"🔄 任务状态更新: {task_id} -> {status}")
