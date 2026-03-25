@@ -29,6 +29,7 @@ async def async_retry(
     :param kwargs: 传递给func的关键字参数
     :return: func的返回值
     """
+    func_name = func.__name__
     for retry in range(max_retries):
         try:
             return await func(*args, **kwargs)
@@ -39,13 +40,13 @@ async def async_retry(
             
             if not should_retry:
                 # 非指定异常，直接抛出
-                logger.error(f"❌ 非重试类型异常: {error}")
+                logger.error(f"❌ 执行[{func_name}]非重试类型异常: {error}")
                 raise
             
-            logger.warning(f"⚠️ 执行失败（第{retry+1}/{max_retries}次）: {error}")
+            logger.warning(f"⚠️ 执行[{func_name}]失败（第{retry+1}/{max_retries}次）: {error}")
             if retry < max_retries - 1:
-                logger.info(f"⏳ {retry_interval}秒后重试...")
+                logger.info(f"⏳ {retry_interval}秒后重试[{func_name}]...")
                 await asyncio.sleep(retry_interval)
             else:
-                logger.error(f"💥 已达最大重试次数 {max_retries} 次，执行失败")
+                logger.error(f"💥 执行[{func_name}]已达最大重试次数 {max_retries} 次，执行失败")
                 raise
