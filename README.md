@@ -90,6 +90,7 @@ X-API-Key: 你在config.yaml中配置的api_key
 | GET | `/api/v1/health` | 健康检查 |
 | GET | `/api/v1/stats` | 获取服务运行统计 |
 | POST | `/api/v1/message/send` | 发送消息，返回任务ID |
+| GET/POST | `/webhook/send` | **通用Webhook推送接口**，简单易用，兼容所有监控/告警/CI系统 |
 | GET | `/api/v1/task/{task_id}` | 查询发送任务状态 |
 | POST | `/api/v1/task/{task_id}/retry` | 重试失败的任务 |
 | GET | `/api/v1/message/received` | 获取接收的消息列表 |
@@ -117,6 +118,38 @@ curl -X POST http://localhost:8080/api/v1/message/send \
 ```bash
 curl http://localhost:8080/api/v1/task/1710923456789_abc123 \
   -H "X-API-Key: your_api_key"
+```
+
+### 通用Webhook接口使用示例
+**适合监控、告警、CI/CD等系统，无需复杂配置，直接填入URL即可使用：**
+
+#### 1. 最简单GET请求方式
+```
+http://你的服务地址/webhook/send?chat_id=123456&text=告警:服务器CPU超过90%&api_key=your_api_key
+```
+
+#### 2. POST JSON方式
+```bash
+curl -X POST http://你的服务地址/webhook/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chat_id": 123456,
+    "text": "部署完成: 生产环境v1.0.0版本已上线",
+    "parse_mode": "Markdown",
+    "disable_notification": false
+  }'
+```
+
+#### 3. POST纯文本方式（chat_id放在query参数）
+```bash
+curl -X POST http://你的服务地址/webhook/send?chat_id=123456&api_key=your_api_key \
+  -H "Content-Type: text/plain" \
+  -d "这是直接发送的纯文本消息，不需要JSON格式"
+```
+
+#### 4. 同步等待发送结果（加wait=true参数）
+```
+http://你的服务地址/webhook/send?chat_id=123456&text=测试消息&wait=true&api_key=your_api_key
 ```
 
 ## 🔧 高级配置

@@ -177,6 +177,109 @@ async def retry_task(task_id: str):
     return {"status": "ok", "message": "任务已重新加入队列"}
 
 
+# -------------------- 通用Webhook推送接口 --------------------
+@app.api_route("/webhook/send", methods=["GET", "POST"], summary="通用Webhook推送接口，简单易用适合监控/告警等系统")
+async def webhook_send(
+    request: Request,
+    chat_id: Optional[int] = Query(None, description="目标聊天ID，路径参数或query参数"),
+    text: Optional[str] = Query(None, description="消息内容，query参数或请求体"),
+    parse_mode: Optional[str] = Query("Markdown", description="解析模式: Markdown/HTML/None"),
+    disable_notification: Optional[bool] = Query(False, description="是否静默发送"),
+    api_key: Optional[str] = Query(None, description="API密钥，query参数或请求头X-API-Key")
+):
+    """
+    通用Webhook推送接口，其他应用无需复杂配置，直接调用即可发送消息
+    支持多种传参方式，兼容所有支持webhook的系统：
+    1. GET请求: /webhook/send?chat_id=123&text=消息内容&api_key=你的密钥
+    2. POST请求(Form): chat_id=123&text=消息内容
+    3. POST请求(JSON): {"chat_id":123, "text":"消息内容"}
+    4. POST请求(纯文本): 请求体直接是消息内容，需要chat_id在query参数
+    """
+    # 鉴权：优先用query参数的api_key，否则用header
+    if API_KEY:
+        request_api_key = api_key or request.headers.get("X-API-Key")
+        if not request_api_key or request_api_key != API_KEY:
+            raise HTTPException(status_code=401, detail="无效的API密钥")
+    
+    # 解析参数
+    params = {}
+    # 先解析query参数
+    params.update(dict(request.query_params))
+    
+    # 解析请求体
+    if request.method == "POST":
+        content_type = request.headers.get("content-type", "")
+        try:
+            if "application/json" in content_type:
+                body = await request.json()
+                if isinstance(body, dict):
+                    params.update(body)
+                elif isinstance(body, str):
+                    # 纯文本请求体，作为text参数
+                    params["text"] = body
+            elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+                form = await request.form()
+                params.update(dict(form))
+            else:
+                # 其他类型，尝试读取纯文本
+                body = await request.body()
+                params["text"] = body.decode("utf-8", errors="ignore")
+        except:
+            # 解析失败，尝试读取纯文本
+            try:
+                body = await request.body()
+                params["text"] = body.decode("utf-8", errors="ignore")
+            except:
+                pass
+    
+    # 转换参数类型
+    if "chat_id" in params:
+        try:
+            chat_id = int(params["chat_id"])
+        except:
+            pass
+    if "disable_notification" in params:
+        params["disable_notification"] = str(params["disable_notification"]).lower() in ["true", "1", "yes"]
+    
+    # 校验必填参数
+    if not chat_id:
+        raise HTTPException(status_code=400, detail="缺少chat_id参数")
+    if "text" not in params or not params["text"]:
+        raise HTTPException(status_code=400, detail="缺少text参数（消息内容）")
+    
+    # 构造发送任务
+    task_data = {
+        "chat_id": chat_id,
+        "text": params["text"],
+        "parse_mode": params.get("parse_mode", parse_mode),
+        "disable_notification": params.get("disable_notification", disable_notification)
+    }
+    
+    # 支持自定义Bot Token
+    if "bot_token" in params and params["bot_token"]:
+        task_data["bot_token"] = params["bot_token"]
+    
+    # 提交发送任务
+    task_id = bridge.send_message(task_data)
+    if not task_id:
+        raise HTTPException(status_code=500, detail="创建发送任务失败")
+    
+    # 支持同步等待结果（兼容需要确认发送结果的场景）
+    wait = params.get("wait", "false").lower() in ["true", "1", "yes"]
+    if wait:
+        # 最多等待10秒
+        for _ in range(100):
+            task = bridge.get_task_status(task_id)
+            if task and task["status"] == "success":
+                return {"status": "success", "task_id": task_id, "message_id": task["message_id"]}
+            elif task and task["status"] == "failed":
+                raise HTTPException(status_code=400, detail=f"发送失败: {task['error_msg']}")
+            await asyncio.sleep(0.1)
+        return {"status": "pending", "task_id": task_id, "message": "消息已提交，正在发送中"}
+    
+    return {"status": "accepted", "task_id": task_id, "message": "消息已提交到发送队列"}
+
+
 # -------------------- 接收消息相关接口 --------------------
 @app.get("/api/v1/message/received", summary="获取接收的消息列表", response_model=List[MessageResponse], dependencies=[Depends(verify_api_key)])
 async def get_received_messages(
