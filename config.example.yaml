@@ -25,6 +25,10 @@ telegram:
   allowed_chat_ids: []  # 白名单聊天ID，空则允许所有
   max_send_retry: 3  # 发送失败最大重试次数
   retry_interval: 2  # 重试间隔（秒）
+  max_start_retry: 5  # 客户端启动最大重试次数
+  start_retry_interval: 5  # 启动失败重试间隔（秒）
+  max_init_retry: 3  # 自定义Bot初始化最大重试次数
+  init_retry_interval: 2  # 自定义Bot初始化重试间隔（秒）
   listen_outgoing: false  # User模式下是否监听自己发出的消息
 
 # ==================== Redis 配置 ====================

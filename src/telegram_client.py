@@ -8,6 +8,7 @@ import time
 from typing import Dict, Optional, Callable, Any
 from loguru import logger
 from telegram import Update
+from telegram.error import NetworkError as TelegramNetworkError
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
@@ -16,6 +17,7 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 from telethon import TelegramClient, events
+from telethon.errors import NetworkError as TelethonNetworkError
 from telethon.tl.types import User, Chat, Channel
 
 
@@ -121,7 +123,12 @@ class BotTelegramClient(BaseTelegramClient):
         if not self.token:
             raise ValueError("Bot模式必须配置token")
         
-        self.application = ApplicationBuilder().token(self.token).build()
+        # 代理配置
+        proxy = self.telegram_config.get('proxy')
+        if proxy:
+            self.application = ApplicationBuilder().token(self.token).proxy(proxy).build()
+        else:
+            self.application = ApplicationBuilder().token(self.token).build()
         
         # 只有默认的主客户端才注册消息处理器，自定义客户端只用于发送
         if message_callback and hasattr(message_callback, '__call__'):
@@ -335,7 +342,12 @@ class UserTelegramClient(BaseTelegramClient):
         if not self.api_id or not self.api_hash or not self.phone:
             raise ValueError("User模式必须配置api_id、api_hash和phone_number")
         
-        self.client = TelegramClient(self.session_file, self.api_id, self.api_hash)
+        # 代理配置
+        proxy = self.telegram_config.get('proxy')
+        if proxy:
+            self.client = TelegramClient(self.session_file, self.api_id, self.api_hash, proxy=proxy)
+        else:
+            self.client = TelegramClient(self.session_file, self.api_id, self.api_hash)
         
         # 注册消息处理器
         event = events.NewMessage(incoming=not self.listen_outgoing, outgoing=self.listen_outgoing)

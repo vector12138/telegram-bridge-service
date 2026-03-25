@@ -16,7 +16,34 @@ os.environ['PYTHONUNBUFFERED'] = '1'
 
 # 日志配置：同时输出到终端和文件（必须放在业务模块导入之前，捕获导入错误）
 os.makedirs("logs", exist_ok=True)
+import logging
 from loguru import logger
+
+# 拦截标准库logging的所有日志，重定向到loguru
+class InterceptHandler(logging.Handler):
+    def emit(self, record):
+        # 获取对应的loguru日志级别
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # 查找调用栈
+        frame, depth = logging.currentframe(), 2
+        while frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+# 配置根日志处理器
+logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+# 手动设置第三方库的日志级别，避免太啰嗦
+logging.getLogger("telegram").setLevel(logging.WARNING)
+logging.getLogger("telethon").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("aiohttp").setLevel(logging.WARNING)
+logging.getLogger("asyncio").setLevel(logging.WARNING)
 
 # 清除默认的终端输出配置
 logger.remove()
