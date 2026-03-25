@@ -40,10 +40,10 @@ Environment=MALLOC_TRIM_THRESHOLD_=65536
 Environment=MALLOC_MMAP_THRESHOLD_=131072
 Environment=PYTHONMALLOC=malloc
 
-# 系统资源限制（128M内存限制）
+# 系统资源限制（256M内存限制）
 Nice=10
-MemoryLimit=128M
-MemoryHigh=120M
+MemoryLimit=256M
+MemoryHigh=240M
 CPUQuota=20%
 PrivateTmp=true
 NoNewPrivileges=true
