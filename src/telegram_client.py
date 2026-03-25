@@ -8,7 +8,6 @@ import time
 from typing import Dict, Optional, Callable, Any
 from loguru import logger
 from telegram import Update
-from telegram.error import NetworkError as TelegramNetworkError
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
@@ -17,7 +16,6 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 from telethon import TelegramClient, events
-from telethon.errors import NetworkError as TelethonNetworkError
 from telethon.tl.types import User, Chat, Channel
 
 
