@@ -134,6 +134,41 @@ class TelegramBridgeService:
             return client
     
     # ==================== 内部逻辑 ====================
+    async def _save_sent_message(self, task: Dict, success: bool, message_id: Optional[int] = None, error_msg: str = "", client = None):
+        """保存发送的消息（无论成功失败）"""
+        try:
+            # 获取Bot信息
+            if not client:
+                client = self.client
+            bot_info = await client.application.bot.get_me()
+            
+            sent_message = {
+                "message_id": message_id if message_id else int(time.time() * 1000),  # 失败的话用时间戳当临时ID
+                "chat_id": task['chat_id'],
+                "chat_title": "",
+                "chat_type": "private",
+                "sender_id": bot_info.id,
+                "sender_name": f"{bot_info.first_name} {bot_info.last_name or ''}".strip(),
+                "sender_username": bot_info.username or "",
+                "is_bot": True,
+                "text": task.get('text', task.get('caption', '')),
+                "timestamp": int(time.time()),
+                "date": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                "has_media": 'media_type' in task,
+                "media_type": task.get('media_type', ''),
+                "source": "bot",
+                "send_success": success,
+                "error_msg": error_msg
+            }
+            # 保存到Redis
+            await asyncio.to_thread(self.redis.save_received_message, sent_message)
+            if success:
+                logger.debug(f"✅ 已保存发送成功的消息: 任务ID={task['task_id']}, 消息ID={message_id}")
+            else:
+                logger.debug(f"✅ 已保存发送失败的消息: 任务ID={task['task_id']}, 错误: {error_msg}")
+        except Exception as e:
+            logger.warning(f"⚠️ 保存发送消息失败: {str(e)}")
+
     async def _consume_send_tasks(self):
         """消费发送任务队列"""
         logger.info("🔄 开始消费发送任务队列")
@@ -179,30 +214,7 @@ class TelegramBridgeService:
                     await asyncio.to_thread(self.redis.clear_task_media, task_id)
                     
                     # 将发送成功的消息保存到消息存储
-                    try:
-                        # 获取Bot信息
-                        bot_info = await client.application.bot.get_me()
-                        sent_message = {
-                            "message_id": result['message_id'],
-                            "chat_id": task['chat_id'],
-                            "chat_title": "",
-                            "chat_type": "private",
-                            "sender_id": bot_info.id,
-                            "sender_name": f"{bot_info.first_name} {bot_info.last_name or ''}".strip(),
-                            "sender_username": bot_info.username or "",
-                            "is_bot": True,
-                            "text": task.get('text', task.get('caption', '')),
-                            "timestamp": int(time.time()),
-                            "date": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                            "has_media": 'media_type' in task,
-                            "media_type": task.get('media_type', ''),
-                            "source": "bot"
-                        }
-                        # 保存到Redis
-                        await asyncio.to_thread(self.redis.save_received_message, sent_message)
-                        logger.debug(f"✅ 已保存发送的消息: 任务ID={task_id}, 消息ID={result['message_id']}")
-                    except Exception as e:
-                        logger.warning(f"⚠️ 保存发送消息失败: {str(e)}")
+                    await self._save_sent_message(task, success=True, message_id=result['message_id'], client=client)
                 else:
                     error_msg = result['error']
                     retry_count = task['retry_count']
@@ -216,11 +228,28 @@ class TelegramBridgeService:
                     else:
                         logger.error(f"❌ 任务 {task_id} 发送失败，已达最大重试次数: {error_msg}")
                         await asyncio.to_thread(self.redis.update_task_status, task_id, 'failed', error_msg)
+                        # 最终发送失败，保存到消息存储
+                        await self._save_sent_message(task, success=False, error_msg=error_msg, client=client)
                         # 最终发送失败，清除媒体内容释放内存
                         await asyncio.to_thread(self.redis.clear_task_media, task_id)
             
             except Exception as e:
                 logger.error(f"💥 消费任务异常: {str(e)}")
+                # 连接异常等情况，将任务重新放回队列重试
+                if 'task' in locals() and task:
+                    try:
+                        task_id = task['task_id']
+                        retry_count = task['retry_count']
+                        if retry_count < self.max_retry:
+                            logger.warning(f"♻️ 异常任务 {task_id} 重新入队重试，当前重试次数: {retry_count}/{self.max_retry}")
+                            await asyncio.to_thread(self.redis.retry_task, task_id)
+                        else:
+                            logger.error(f"❌ 异常任务 {task_id} 已达最大重试次数，标记为失败")
+                            await asyncio.to_thread(self.redis.update_task_status, task_id, 'failed', f"消费异常: {str(e)}")
+                            # 最终发送失败，保存到消息存储
+                            await self._save_sent_message(task, success=False, error_msg=str(e))
+                    except Exception as retry_err:
+                        logger.error(f"❌ 异常任务重试入队失败: {str(retry_err)}")
                 await asyncio.sleep(1)
     
     async def _on_receive_message(self, message: Dict):

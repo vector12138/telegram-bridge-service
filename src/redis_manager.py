@@ -60,6 +60,8 @@ class RedisManager:
                 save_msg['is_bot'] = str(save_msg['is_bot'])
             if 'has_media' in save_msg:
                 save_msg['has_media'] = str(save_msg['has_media'])
+            if 'send_success' in save_msg:
+                save_msg['send_success'] = str(save_msg['send_success'])
             self.client.hset(key, mapping=save_msg)
             self.client.expire(key, self.message_expire)
             
@@ -343,10 +345,11 @@ class RedisManager:
         for field in ['message_id', 'chat_id', 'sender_id', 'timestamp']:
             if field in msg:
                 msg[field] = int(msg[field])
-        if 'is_bot' in msg:
-            msg['is_bot'] = msg['is_bot'] == 'True'
-        if 'has_media' in msg:
-            msg['has_media'] = msg['has_media'] == 'True'
+        for bool_field in ['is_bot', 'has_media', 'send_success']:
+            if bool_field in msg:
+                msg[bool_field] = msg[bool_field] == 'True'
+        if 'error_msg' not in msg:
+            msg['error_msg'] = ''
         return msg
     
     def _format_task(self, task: Dict) -> Dict:
