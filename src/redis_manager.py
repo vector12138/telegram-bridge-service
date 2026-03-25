@@ -253,7 +253,15 @@ class RedisManager:
                 update_data['message_id'] = str(message_id)
             
             self.client.hset(key, mapping=update_data)
-            logger.info(f"🔄 任务状态更新: {task_id} -> {status}")
+            # 不同状态用不同日志标识，更易识别
+            if status == "success":
+                msg_extra = f" (消息ID: {message_id})" if message_id else ""
+                logger.info(f"✅ 任务状态更新: {task_id} -> {status}{msg_extra}")
+            elif status == "failed":
+                msg_extra = f" (错误: {error_msg[:60]}{'...' if len(error_msg) > 60 else ''})" if error_msg else ""
+                logger.warning(f"❌ 任务状态更新: {task_id} -> {status}{msg_extra}")
+            else:
+                logger.info(f"🔄 任务状态更新: {task_id} -> {status}")
             return True
         except Exception as e:
             logger.error(f"更新任务状态失败: {str(e)}")
