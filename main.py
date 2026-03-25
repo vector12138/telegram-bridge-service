@@ -7,6 +7,8 @@ Telegram Bridge Service - 启动入口
 import os
 import sys
 import argparse
+import asyncio
+import traceback
 
 # 开启最高级别优化，减少内存占用
 sys.dont_write_bytecode = True
@@ -18,6 +20,25 @@ os.environ['PYTHONUNBUFFERED'] = '1'
 os.makedirs("logs", exist_ok=True)
 import logging
 from loguru import logger
+
+# 自定义异常处理器：仅打印最后一行异常信息，无traceback
+def custom_exception_handler(type, value, tb):
+    error_msg = f"{type.__name__}: {value}"
+    logger.error(error_msg)
+
+# 覆盖全局异常处理器
+sys.excepthook = custom_exception_handler
+
+# 覆盖asyncio异常处理器
+def custom_async_exception_handler(loop, context):
+    exception = context.get('exception')
+    if exception:
+        error_msg = f"{exception.__class__.__name__}: {exception}"
+        logger.error(error_msg)
+    else:
+        logger.error(context.get('message', 'Unknown async error'))
+
+asyncio.get_event_loop_policy().get_event_loop().set_exception_handler(custom_async_exception_handler)
 
 # 拦截标准库logging的所有日志，重定向到loguru
 class InterceptHandler(logging.Handler):
@@ -34,7 +55,13 @@ class InterceptHandler(logging.Handler):
             frame = frame.f_back
             depth += 1
 
-        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+        # 异常信息只保留最后一行，不打印栈
+        if record.exc_info:
+            exc_type, exc_value, _ = record.exc_info
+            msg = f"{record.getMessage()} - {exc_type.__name__}: {exc_value}"
+            logger.opt(depth=depth).log(level, msg)
+        else:
+            logger.opt(depth=depth).log(level, record.getMessage())
 
 # 配置根日志处理器
 logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
@@ -53,8 +80,9 @@ logger.add(
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
     level="INFO",
     colorize=True,
-    backtrace=False,  # 关闭完整调用栈打印
-    diagnose=False    # 关闭异常诊断信息
+    backtrace=False,  # 完全关闭调用栈
+    diagnose=False,   # 完全关闭诊断信息
+    catch=False       # 不自动捕获异常，由我们自己处理
 )
 # 添加文件输出（按天切割，保留7天日志）
 logger.add(
