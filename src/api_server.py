@@ -561,7 +561,7 @@ def run_server():
             "access_log": False,  # 关闭访问日志，减少IO和内存占用
             "server_header": False,  # 关闭Server响应头
             "date_header": False,  # 关闭Date响应头
-            "limit_max_requests": 10000,  # 每处理10000个请求自动重启，避免内存泄漏
+            "limit_max_requests": 1000000,  # 每处理100万个请求自动重启，避免内存泄漏
             "timeout_keep_alive": 5,  # 减少空闲连接超时时间，尽快释放资源
             "backlog": 128,  # 限制TCP连接队列长度，减少内存占用
             "use_colors": False,  # 关闭日志颜色，减少开销

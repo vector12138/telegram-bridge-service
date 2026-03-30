@@ -33,6 +33,9 @@ class TelegramBridgeService:
         self._bot_clients_cache: Dict[str, BotTelegramClient] = {}
         self._cache_lock = asyncio.Lock()
         
+        # Bot信息缓存 {client_id: bot_info}，避免每次保存消息都请求Telegram API
+        self._bot_info_cache: Dict[str, Any] = {}
+        
         # 运行状态
         self.running = False
         self._consumer_task: Optional[asyncio.Task] = None
@@ -159,10 +162,17 @@ class TelegramBridgeService:
     async def _save_sent_message(self, task: Dict, success: bool, message_id: Optional[int] = None, error_msg: str = "", client = None):
         """保存发送的消息（无论成功失败）"""
         try:
-            # 获取Bot信息
+            # 获取Bot信息（优先用缓存，避免每次请求Telegram API）
             if not client:
                 client = self.client
-            bot_info = await client.application.bot.get_me()
+            client_id = id(client)
+            
+            if client_id not in self._bot_info_cache:
+                # 加超时，避免API请求卡住
+                bot_info = await asyncio.wait_for(client.application.bot.get_me(), timeout=3)
+                self._bot_info_cache[client_id] = bot_info
+            else:
+                bot_info = self._bot_info_cache[client_id]
             
             sent_message = {
                 "message_id": message_id if message_id else int(time.time() * 1000),  # 失败的话用时间戳当临时ID
