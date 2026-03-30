@@ -25,6 +25,8 @@
 > - ✅ 架构更精简，冗余代码全部删除
 > - ✅ 资源占用更低，性能更好
 > - ✅ 功能更完整，覆盖所有使用场景
+> - ✅ 内置自动重启机制，无需依赖服务器cron，长期运行稳定可靠
+> - ✅ 优化请求限制，支持百万级请求处理，避免频繁重启
 
 ## 📦 环境要求
 
@@ -200,20 +202,43 @@ redis:
 ## 🛠 部署建议
 
 ### Linux/macOS 部署
-#### 生产环境使用 PM2 后台运行
+#### 推荐：Systemd 部署（配合自动重启功能）
+> 配合内置自动重启功能，异常退出自动拉起，稳定性最佳
+```ini
+# /etc/systemd/system/telegram-bridge.service
+[Unit]
+Description=Telegram Bridge Service
+After=network.target redis.service
+
+[Service]
+User=root
+WorkingDirectory=/opt/telegram-bridge-service
+ExecStart=/usr/bin/python3 main.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+```
+保存后执行：
+```bash
+systemctl daemon-reload
+systemctl enable --now telegram-bridge
+```
+#### 查看日志
+```bash
+journalctl -u telegram-bridge -f
+```
+
+---
+
+#### 备选：PM2 后台运行
 ```bash
 npm install -g pm2
 pm2 start main.py --name telegram-bridge --interpreter python3
-```
-
-#### 开机自启
-```bash
 pm2 save
 pm2 startup
-```
-
-#### 查看日志
-```bash
 pm2 logs telegram-bridge
 ```
 
