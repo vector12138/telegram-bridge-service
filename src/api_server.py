@@ -516,9 +516,48 @@ async def telegram_compatible_api(token: str, method: str, request: Request):
 
 
 # ==================== 服务生命周期 ====================
+import datetime
+async def auto_restart_task():
+    """每日自动重启定时任务"""
+    auto_restart_config = config.get('auto_restart', {})
+    if not auto_restart_config.get('enabled', False):
+        logger.info("🔄 自动重启功能已关闭")
+        return
+    
+    restart_time = auto_restart_config.get('time', '04:00')
+    try:
+        restart_hour, restart_minute = map(int, restart_time.split(':'))
+    except:
+        logger.error(f"⚠️ 自动重启时间格式错误: {restart_time}，使用默认04:00")
+        restart_hour, restart_minute = 4, 0
+    
+    logger.info(f"🔄 自动重启功能已开启，每日{restart_hour:02d}:{restart_minute:02d}自动重启")
+    
+    while True:
+        now = datetime.datetime.now()
+        # 计算下一次重启时间
+        next_restart = now.replace(hour=restart_hour, minute=restart_minute, second=0, microsecond=0)
+        if next_restart <= now:
+            next_restart += datetime.timedelta(days=1)
+        
+        # 计算等待时间
+        wait_seconds = (next_restart - now).total_seconds()
+        logger.debug(f"⏳ 距离下一次自动重启还有: {wait_seconds/3600:.1f}小时")
+        
+        await asyncio.sleep(wait_seconds)
+        
+        # 到点执行重启
+        logger.info("🔄 到达自动重启时间，服务即将重启...")
+        # 直接退出进程，依赖systemd自动重启
+        import sys
+        sys.exit(0)
+
+
 async def start_bridge_service():
     """启动桥接服务后台任务"""
     asyncio.create_task(bridge.start())
+    # 启动自动重启任务
+    asyncio.create_task(auto_restart_task())
 
 
 @app.on_event("startup")
