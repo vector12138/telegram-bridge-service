@@ -176,7 +176,7 @@ class TelegramBridgeService:
             
             sent_message = {
                 "message_id": message_id if message_id else int(time.time() * 1000),  # 失败的话用时间戳当临时ID
-                "chat_id": task['chat_id'],
+                "chat_id": int(task['chat_id']),  # 统一转换为整数类型，避免字符串/int类型不一致问题
                 "chat_title": "",
                 "chat_type": "private",
                 "sender_id": bot_info.id,

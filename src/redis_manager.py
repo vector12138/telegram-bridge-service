@@ -66,10 +66,13 @@ class RedisManager:
             self.client.expire(key, self.message_expire)
             
             # 添加到全局消息列表（有序集合，按时间排序）
-            self.client.zadd(f"{self.prefix}msg:all", {f"{chat_id}:{msg_id}": message['timestamp']})
+            all_key = f"{chat_id}:{msg_id}"
+            added_all = self.client.zadd(f"{self.prefix}msg:all", {all_key: message['timestamp']})
+            logger.debug(f"写入全局消息列表: key={all_key}, score={message['timestamp']}, 新增={added_all}")
             
             # 添加到聊天维度的消息列表
-            self.client.zadd(f"{self.prefix}msg:chat:{chat_id}", {str(msg_id): message['timestamp']})
+            added_chat = self.client.zadd(f"{self.prefix}msg:chat:{chat_id}", {str(msg_id): message['timestamp']})
+            logger.debug(f"写入聊天消息列表: chat={chat_id}, msg_id={msg_id}, score={message['timestamp']}, 新增={added_chat}")
             
             # 自动清理旧消息
             self._cleanup_old_messages()
